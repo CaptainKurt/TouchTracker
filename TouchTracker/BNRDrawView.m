@@ -9,8 +9,9 @@
 #import "BNRDrawView.h"
 #import "BNRLine.h"
 
-@interface BNRDrawView ()
+@interface BNRDrawView () <UIGestureRecognizerDelegate>
 
+@property (nonatomic, strong) UIPanGestureRecognizer *moveRecognizer;
 @property (nonatomic, strong) NSMutableDictionary *linesInProgress;
 @property (nonatomic, strong) NSMutableArray *finishedLines;
 @property (nonatomic, weak) UIColor *lineColor;
@@ -31,6 +32,7 @@
         self.backgroundColor = [UIColor grayColor];
         self.multipleTouchEnabled = YES;
         
+        // Double tap gesture
         UITapGestureRecognizer *doubleTapRecognizer =
             [[UITapGestureRecognizer alloc] initWithTarget:self
                                                     action:@selector(doubleTap:)];
@@ -38,12 +40,26 @@
         doubleTapRecognizer.delaysTouchesBegan = YES;
         [self addGestureRecognizer:doubleTapRecognizer];
         
+        // Single tap gesture
         UITapGestureRecognizer *tapRecognizer =
             [[UITapGestureRecognizer alloc] initWithTarget:self
                                                     action:@selector(tap:)];
         tapRecognizer.delaysTouchesBegan = YES;
         [tapRecognizer requireGestureRecognizerToFail:doubleTapRecognizer];
         [self addGestureRecognizer:tapRecognizer];
+        
+        // Long press gesture
+        UILongPressGestureRecognizer *pressRecognizer =
+            [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                          action:@selector(longPress:)];
+        [self addGestureRecognizer:pressRecognizer];
+        
+        // Pan gesture
+        self.moveRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self
+                                                                      action:@selector(moveLine:)];
+        self.moveRecognizer.delegate = self;
+        self.moveRecognizer.cancelsTouchesInView = NO;
+        [self addGestureRecognizer:self.moveRecognizer];
     }
     
     return self;
@@ -154,6 +170,7 @@
     return (((atan2((line.end.x - line.begin.x) , (line.end.y - line.begin.y)))*180)/M_PI);
 }
 
+// Double tap action
 - (void)doubleTap:(UIGestureRecognizer *)gr
 {
     NSLog(@"Recognized Double Tap");
@@ -163,6 +180,7 @@
     [self setNeedsDisplay];
 }
 
+// Single tap action
 - (void)tap:(UIGestureRecognizer *)gr
 {
     NSLog(@"Recognized tap");
@@ -192,6 +210,65 @@
     }
     
     [self setNeedsDisplay];
+}
+
+// Long press action
+- (void)longPress:(UIGestureRecognizer *)gr
+{
+    
+    if (gr.state == UIGestureRecognizerStateBegan) {
+        CGPoint point = [gr locationInView:self];
+        self.selectedLine = [self lineAtPoint:point];
+        
+        if (self.selectedLine) {
+            [self.linesInProgress removeAllObjects];
+        }
+    }
+    else if (gr.state == UIGestureRecognizerStateEnded)
+    {
+        self.selectedLine = nil;
+    }
+    [self setNeedsDisplay];
+}
+
+// Pan gesture action
+- (void)moveLine:(UIPanGestureRecognizer *)gr
+{
+    // If we have not selected a line, we do not do anything here
+    if (!self.selectedLine) {
+        return;
+    }
+    
+    // When the pan recognizer changes its position...
+    if (gr.state == UIGestureRecognizerStateChanged) {
+        // How far has the pan moved?
+        CGPoint translation = [gr translationInView:self];
+        
+        // Add the translation to the current beginning and end points of the line
+        CGPoint begin = self.selectedLine.begin;
+        CGPoint end = self.selectedLine.end;
+        begin.x += translation.x;
+        begin.y += translation.y;
+        end.x += translation.x;
+        end.y += translation.y;
+        
+        // Set the new beginning and end points of the line
+        self.selectedLine.begin = begin;
+        self.selectedLine.end = end;
+        
+        // Redraw the screen
+        [self setNeedsDisplay];
+        
+        [gr setTranslation:CGPointZero inView:self];
+    }
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
+{
+    if (gestureRecognizer == self.moveRecognizer) {
+        return YES;
+    }
+    return NO;
 }
 
 - (BOOL)canBecomeFirstResponder
