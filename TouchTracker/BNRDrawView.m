@@ -16,6 +16,7 @@
 @property (nonatomic, strong) NSMutableArray *finishedLines;
 @property (nonatomic, weak) UIColor *lineColor;
 
+@property (nonatomic, weak) UIMenuController *menu;
 @property (nonatomic, weak) BNRLine *selectedLine;
 
 @end
@@ -65,10 +66,10 @@
     return self;
 }
 
-- (void)strokeLine:(BNRLine *)line
+- (void)strokeLine:(BNRLine *)line withWidth:(float)width
 {
     UIBezierPath *bp = [UIBezierPath bezierPath];
-    bp.lineWidth = 10;
+    bp.lineWidth = width;
     bp.lineCapStyle = kCGLineCapRound;
     
     [bp moveToPoint:line.begin];
@@ -80,28 +81,39 @@
     [bp stroke];
 }
 
+
 - (void)drawRect:(CGRect)rect
 {
     // Draw finished lines in black
     [[UIColor blackColor] set];
     for (BNRLine *line in self.finishedLines) {
-        [self strokeLine:line];
+        [self strokeLine:line withWidth:line.width];
     }
     
     [[UIColor redColor] set];
     for (NSValue *key in self.linesInProgress) {
-        [self strokeLine:self.linesInProgress[key]];
+        BNRLine *line = self.linesInProgress[key];
+        CGFloat hue = atan2f(line.end.y - line.begin.y, line.end.x - line.begin.x);
+        hue += M_PI;
+        hue /= M_PI * 2.0;
+        [[UIColor colorWithHue:hue saturation:1.0 brightness:1.0 alpha:1.0] set];
+        
+        [self strokeLine:self.linesInProgress[key] withWidth:line.width];
     }
     
     if (self.selectedLine) {
         [[UIColor greenColor] set];
-        [self strokeLine:self.selectedLine];
+        [self strokeLine:self.selectedLine withWidth:self.selectedLine.width];
     }
 }
 
 - (void)touchesBegan:(NSSet *)touches
            withEvent:(UIEvent *)event
 {
+    if (self.selectedLine) {
+        return;
+    }
+    
     // Log statement to see the order of events
     NSLog(@"%@", NSStringFromSelector(_cmd));
     
@@ -109,6 +121,7 @@
         CGPoint location = [t locationInView:self];
         
         BNRLine *line = [[BNRLine alloc] init];
+        
         line.begin = location;
         line.end = location;
         
@@ -122,12 +135,19 @@
 - (void)touchesMoved:(NSSet *)touches
            withEvent:(UIEvent *)event
 {
+    if (self.selectedLine) {
+        return;
+    }
+    
     // log statement to see the order of events
     NSLog(@"%@", NSStringFromSelector(_cmd));
     
     for (UITouch *t in touches) {
         NSValue *key = [NSValue valueWithNonretainedObject:t];
         BNRLine *line = self.linesInProgress[key];
+        
+        CGPoint velocity = [self.moveRecognizer velocityInView:self]; //<---------------- grab the velocity
+        line.width = (abs(velocity.x) + abs(velocity.y)) / 50;
         
         line.end = [t locationInView:self];
     }
@@ -138,6 +158,10 @@
 - (void)touchesEnded:(NSSet *)touches
            withEvent:(UIEvent *)event
 {
+    if (self.selectedLine) {
+        return;
+    }
+    
     // log statement to see the order of events
     NSLog(@"%@", NSStringFromSelector(_cmd));
     
@@ -155,6 +179,10 @@
 - (void)touchesCancelled:(NSSet *)touches
                withEvent:(UIEvent *)event
 {
+    if (self.selectedLine) {
+        return;
+    }
+    
     // Log statement to see the order of events
     NSLog(@"%@", NSStringFromSelector(_cmd));
     
@@ -237,6 +265,9 @@
     // If we have not selected a line, we do not do anything here
     if (!self.selectedLine) {
         return;
+    }
+    else {
+        [self.menu setMenuVisible:NO animated:YES];
     }
     
     // When the pan recognizer changes its position...
