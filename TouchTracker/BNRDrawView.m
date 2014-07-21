@@ -171,6 +171,8 @@
         
         [self.finishedLines addObject:line];
         [self.linesInProgress removeObjectForKey:key];
+        
+        line.containingArray = self.finishedLines;
     }
     
     [self setNeedsDisplay];
@@ -204,7 +206,9 @@
     NSLog(@"Recognized Double Tap");
     
     [self.linesInProgress removeAllObjects];
-    [self.finishedLines removeAllObjects];
+//    [self.finishedLines removeAllObjects];
+    
+    self.finishedLines = [[NSMutableArray alloc]init];
     [self setNeedsDisplay];
 }
 
@@ -355,4 +359,5 @@
     }
     return lc;
 }
+
 @end

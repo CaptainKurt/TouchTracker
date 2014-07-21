@@ -14,4 +14,6 @@
 @property (nonatomic) CGPoint end;
 @property (nonatomic) float width;
 
+@property (strong, nonatomic) NSMutableArray *containingArray;
+
 @end
